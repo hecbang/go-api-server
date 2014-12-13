@@ -1,6 +1,7 @@
 package common
 
 import (
+	"io/ioutil"
 	"os"
 )
 
@@ -17,6 +18,6 @@ func FileExists(filename string) bool {
 //从一个文件中读取内容
 //@param string filename 要读取的文件
 //@return []byte content 读取的文件内容
-func Read(filename string) (content []byte, err error) {
-
+func Read(filename string) ([]byte, error) {
+	return ioutil.ReadFile(filename)
 }
