@@ -1,8 +1,13 @@
 package main
 
-import "fmt"
-import "libraries"
+import (
+	"const/path"
+	"fmt"
+	"libraries/common"
+)
 
 func main() {
-	fmt.Println(common.Rand(100, 101))
+	filepath := path.CONFIG_PATH + "db.json"
+
+	fmt.Println(common.FileExists(filepath))
 }
