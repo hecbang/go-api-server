@@ -13,3 +13,10 @@ func FileExists(filename string) bool {
 	}
 	return true
 }
+
+//从一个文件中读取内容
+//@param string filename 要读取的文件
+//@return []byte content 读取的文件内容
+func Read(filename string) (content []byte, err error) {
+
+}
