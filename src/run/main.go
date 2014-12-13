@@ -12,7 +12,7 @@ func main() {
 	filepath := path.CONFIG_PATH + "db.json"
 	fp, err := os.Open(filepath)
 	if err != nil {
-		
+		log.Fatal(err.Error())
 	}
 	fmt.Println(common.FileExists(filepath))
 }
