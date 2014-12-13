@@ -1,11 +1,50 @@
 package common
 
 import (
+	"encoding/json"
+	//"fmt"
 	"math/rand"
+	"reflect"
 	"runtime"
 	"strings"
 	"time"
 )
+
+//判断某一个值是否在列表(支持 slice, array, map)中
+func InList(needle interface{}, haystack interface{}) bool {
+	//interface{}和interface{}可以进行比较，但是interface{}不可进行遍历
+	hayValue := reflect.ValueOf(haystack)
+
+	switch reflect.TypeOf(haystack).Kind() {
+	case reflect.Slice, reflect.Array:
+		//slice, array类型
+		for i := 0; i < hayValue.Len(); i++ {
+			if hayValue.Index(i).Interface() == needle {
+				return true
+			}
+		}
+	case reflect.Map:
+		//map类型
+		var keys []reflect.Value = hayValue.MapKeys()
+		for i := 0; i < len(keys); i++ {
+			if hayValue.MapIndex(keys[i]).Interface() == needle {
+				return true
+			}
+		}
+	default:
+		return false
+	}
+	return false
+}
+
+//加载一个JSON文件，并将JSON串解析到v的结构中
+func LoadJson(filename string, v interface{}) error {
+	bytes, err := Read(filename)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(bytes, &v)
+}
 
 //获取memory使用量，单位byte
 func MemoryGetUsage() uint64 {

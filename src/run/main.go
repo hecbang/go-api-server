@@ -14,6 +14,12 @@ type DbItem struct {
 }
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Fatalf("Runtime error caught: %v", r)
+		}
+	}()
+
 	filepath := path.CONFIG_PATH + "db.json"
 	content, err := common.Read(filepath)
 	if err != nil {
@@ -23,5 +29,7 @@ func main() {
 	if err := json.Unmarshal(content, &v); err != nil {
 		log.Fatal(err.Error())
 	}
-	fmt.Println(v["default"].Slave[common.Rand(0, len(v["default"].Slave)-1)])
+
+	db := common.NewQuery()
+	fmt.Println(db)
 }

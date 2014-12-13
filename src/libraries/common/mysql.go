@@ -1,169 +1,85 @@
-package mysql
+package common
 
 import (
+	"const/path"
 	"database/sql"
+	//"fmt"
 	_ "github.com/go-mysql-driver"
 	"log"
-	"strconv"
-	"strings"
-	"time"
 )
 
-var db *sql.DB
-var connTime int64 = 0
-var waitTimeout int64 = 0
+var db map[string]*sql.DB
 
 func init() {
-	connect()
-	checkConn()
-}
-
-//数据库连接操作
-func connect() {
-	initdb, err := sql.Open("mysql", "root:84373723@tcp(127.0.0.1:3306)/pharmacy?charset=utf8")
-	if err != nil {
-		log.Fatal(err)
-	}
-	db = initdb
-	connTime = time.Now().Unix()
-	waitTimeout = getWaitTimeout()
-}
-
-//检查并推断数据库连接是否可用，如果不可用，则重新建立连接
-func checkConn() {
-	if waitTimeout == 0 {
-		waitTimeout = getWaitTimeout()
-	}
-	if time.Now().Unix()-connTime+2 > waitTimeout {
-		connect()
-	}
-	connTime = time.Now().Unix()
-}
-
-func getWaitTimeout() int64 {
-	//定位数据库对空闲连接的等待时长
-	var mysql MySql
-	rows, err := db.Query("SHOW VARIABLES LIKE 'wait_timeout'")
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	result, err := mysql.Fetch(rows)
-	if len(result) > 0 {
-		time, err1 := strconv.Atoi(result[0]["Value"])
-		if err1 != nil {
-			log.Fatal(err1.Error())
-		}
-		return int64(time)
-	} else {
-		log.Fatal(err.Error())
-	}
-	return 0
+	db = make(map[string]*sql.DB)
 }
 
 type MySql struct {
+	db     *sql.DB
+	optype string
 }
 
-//根据所提供的SQL语句获取数据列表
-func (mysql *MySql) GetAll(sql string, args ...interface{}) ([]map[string]string, error) {
-	checkConn()
-	rows, err := db.Query(sql, args...)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-	return mysql.Fetch(rows)
+//创建一个默认的mysql操作实例
+func NewMySql() *MySql {
+	return NewMySqlInstance("default", "Master")
 }
 
-//根据SQL语句获取一行数据
-func (mysql *MySql) GetRow(sql string, args ...interface{}) (map[string]string, error) {
-	retval := make(map[string]string, 0)
-	if !strings.Contains(strings.ToLower(sql), "limit") {
-		sql += " LIMIT 1"
-	}
-	rows, err := db.Query(sql, args...)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-	result, err := mysql.Fetch(rows)
-	if err != nil {
-		return retval, err
-	}
-	if len(result) > 0 {
-		retval = result[0]
-	}
-	return retval, nil
-
+//创建一个默认的mysql查询实例
+func NewQuery() *MySql {
+	return NewMySqlInstance("default", "Slave")
 }
 
-//根据表名、指定字段、条件获取数据列表
-func (mysql *MySql) GetList(table string, fields []string, conditions map[string]string) ([]map[string]string, error) {
-	checkConn()
-	//拼接field部分
-	querysql := mysql.buildSql(table, fields, conditions)
-
-	rows, err := db.Query(querysql)
-	if err != nil {
-		log.Fatal(err)
+//实例化一个mysql实例
+//@param string schema 数据库连接方案
+//@param string conntype 数据库连接类型，范围: Master, Slave
+func NewMySqlInstance(schema string, conntype string) *MySql {
+	if !InList(conntype, []string{"Master", "Slave"}) {
+		panic("function common.NewSqlInstance's second argument must be Master or Slave.")
 	}
-	defer rows.Close()
 
-	return mysql.Fetch(rows)
+	var key string = schema + conntype
+	_, ok := db[key]
+	if !ok {
+		//建立一个新连接到mysql
+		connect(schema, conntype)
+	}
+	return &MySql{db: db[key], optype: conntype}
 }
 
-func (mysql *MySql) Fetch(rows *sql.Rows) ([]map[string]string, error) {
-	result := make([]map[string]string, 0)
-	columns, err := rows.Columns()
+//建立数据库连接
+//@param string schema 连接DB方案
+//@param string conntype 连接类型，是分Master和Slave类型
+func connect(schema string, contype string) {
+	type item struct {
+		Master string
+		Slave  []string
+	}
+	var v map[string]item
+
+	//获取DB连接配置文件
+	if err := LoadJson(path.CONFIG_PATH+"db.json", &v); err != nil {
+		log.Fatalln(err.Error())
+	}
+	conf, ok := v[schema]
+	if !ok {
+		log.Fatalln("Database configuration file error. Lost schema[" + schema + "] node.")
+	}
+	var dataSourceName string
+	var key string
+	if contype == "Master" {
+		dataSourceName = conf.Master
+		key = schema + "Master"
+	} else {
+		dataSourceName = conf.Slave[Rand(0, len(conf.Slave)-1)]
+		key = schema + "Slave"
+	}
+
+	//开始连接DB
+	dbinit, err := sql.Open("mysql", dataSourceName)
 	if err != nil {
-		//data not found
-		return result, nil
+		log.Fatalln(err.Error())
 	}
 
-	//make a slice for the values
-	values := make([]sql.RawBytes, len(columns))
-
-	//rows.Scan wants '[]interface{}' as an argument, so we must copy the
-	//references into such a slice
-	scanArgs := make([]interface{}, len(columns))
-
-	//the type '[]interface{}' references to '[]sql.RawBytes'
-	for i := range values {
-		scanArgs[i] = &values[i]
-	}
-
-	item := make(map[string]string)
-	for rows.Next() {
-		err := rows.Scan(scanArgs...)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		var val string
-		for i, col := range values {
-			if col == nil {
-				val = ""
-			} else {
-				val = string(col)
-			}
-			item[columns[i]] = val
-		}
-		result = append(result, item)
-	}
-	return result, nil
-}
-
-//根据表、字段、条件拼接SQL语句
-func (mysql *MySql) buildSql(table string, fields []string, conditions map[string]string) string {
-	//拼接field部分
-	fieldstr := strings.Join(fields, ", ")
-
-	//拼接condition条件部分
-	var condlist []string
-	for k, v := range conditions {
-		condlist = append(condlist, k+"='"+v+"'")
-	}
-	condstr := strings.Join(condlist, " AND ")
-
-	querysql := "SELECT " + fieldstr + " FROM " + table + " WHERE " + condstr
-	return querysql
+	//将DB连接放入一个全局变量中
+	db[key] = dbinit
 }
