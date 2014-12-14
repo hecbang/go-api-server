@@ -1,8 +1,9 @@
 package common
 
 import (
+	"crypto/md5"
 	"encoding/json"
-	//"fmt"
+	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime"
@@ -10,11 +11,44 @@ import (
 	"time"
 )
 
+//根据分隔符(;,|)，将字符串转为一个字符串list
+func StringToList(str string) []string {
+	var list []string = make([]string, 0)
+	if Empty(str) {
+		return list
+	}
+	for _, delimiter := range []string{",", "|"} {
+		str = strings.Replace(str, delimiter, ";", -1)
+	}
+	for _, v := range strings.Split(str, ";") {
+		v = strings.TrimSpace(v)
+		if !Empty(v) {
+			list = append(list, v)
+		}
+	}
+	return list
+}
+
+//判断一个数据是否为空，支持int, float, string, slice, array, map的判断
+func Empty(value interface{}) bool {
+	if value == nil {
+		return true
+	}
+	switch reflect.TypeOf(value).Kind() {
+	case reflect.String, reflect.Slice, reflect.Array, reflect.Map:
+		if reflect.ValueOf(value).Len() == 0 {
+			return true
+		} else {
+			return false
+		}
+	}
+	return false
+}
+
 //判断某一个值是否在列表(支持 slice, array, map)中
 func InList(needle interface{}, haystack interface{}) bool {
 	//interface{}和interface{}可以进行比较，但是interface{}不可进行遍历
 	hayValue := reflect.ValueOf(haystack)
-
 	switch reflect.TypeOf(haystack).Kind() {
 	case reflect.Slice, reflect.Array:
 		//slice, array类型
@@ -79,4 +113,20 @@ func Date(format string) string {
 		format = strings.Replace(format, k, v, -1)
 	}
 	return time.Now().Format(format)
+}
+
+//根据输入的值，获取一个经过md5编辑的key
+//该函数主要应用于对一组数据的唯一性标识下
+func BuildKeyMd5(args ...interface{}) string {
+	var bytes []byte = make([]byte, 0, 20)
+	if len(args) == 0 {
+		bytes = append(bytes, []byte("")...)
+	} else {
+		for _, v := range args {
+			//任何类型的值都按base-16解析成字符串并转化为[]byte类型
+			bytes = append(bytes, []byte(fmt.Sprintf("%x", v))...)
+		}
+	}
+	//按base-16形式解析并返回字符串
+	return fmt.Sprintf("%x", md5.Sum(bytes))
 }

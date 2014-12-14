@@ -1,9 +1,9 @@
 {
     "default":{
-		"master":"root:84373723@tcp(127.0.0.1:3306)/pharmacy?charset=utf8",
+		"master":"root:84373723@tcp(127.0.0.1:3306)/test?charset=utf8",
 		"slave":[
-			"root:84373723@tcp(127.0.0.1:3306)/pharmacy?charset=utf8",
-            "root:84373723@tcp(127.0.0.1:3306)/pharmacy?charset=utf8"
+			"root:84373723@tcp(127.0.0.1:3306)/test?charset=utf8",
+            "root:84373723@tcp(127.0.0.1:3306)/test?charset=utf8"
 		]
 	},
 	"sys":{
