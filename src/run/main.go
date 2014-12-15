@@ -36,15 +36,15 @@ func main() {
 	}
 
 	db := common.NewMySql()
-	//list, err := db.GetList("teacher", []string{}, map[string]string{"Id": "4;2;3"})
+	//list, err := db.GetList("ttt", []string{}, map[string]interface{}{"Id": 4, "Name": "helloworld"})
 	//if err != nil {
 	//	log.Fatal(err.Error())
 	//}
 	//fmt.Println(list)
-	id, err := db.Insert("ttt", map[string]interface{}{"Number": 12, "Name": "yorkershi"})
+	rowsAffected, err := db.Delete("ttt", map[string]interface{}{})
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	fmt.Println(id)
+	fmt.Println(rowsAffected)
 
 }

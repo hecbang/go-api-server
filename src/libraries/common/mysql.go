@@ -8,6 +8,7 @@ import (
 	"const/path"
 	"database/sql"
 	//"fmt"
+	"errors"
 	_ "github.com/go-mysql-driver"
 	"log"
 	"regexp"
@@ -176,7 +177,7 @@ func (this *MySql) GetOne(sql string, args ...interface{}) (string, error) {
 //参数5: 取记录限制string，格式如"10, 20" 或 "5"
 func (this *MySql) GetList(table string, args ...interface{}) ([]map[string]string, error) {
 	var fields []string = make([]string, 0)
-	var conditions map[string]string = make(map[string]string)
+	var conditions map[string]interface{} = make(map[string]interface{})
 	var orderby string
 	var limit string
 	if len(args) > 0 {
@@ -185,7 +186,7 @@ func (this *MySql) GetList(table string, args ...interface{}) ([]map[string]stri
 			case 0:
 				fields = v.([]string)
 			case 1:
-				conditions = v.(map[string]string)
+				conditions = v.(map[string]interface{})
 			case 2:
 				orderby = v.(string)
 			case 3:
@@ -205,7 +206,7 @@ func (this *MySql) GetList(table string, args ...interface{}) ([]map[string]stri
 //参数4: 排序条件string，格式如："Id DESC"
 func (this *MySql) GetDictionary(table string, args ...interface{}) (map[string]string, error) {
 	var fields []string = make([]string, 0)
-	var conditions map[string]string = make(map[string]string)
+	var conditions map[string]interface{} = make(map[string]interface{})
 	var orderby string
 	if len(args) > 0 {
 		for i, v := range args {
@@ -213,7 +214,7 @@ func (this *MySql) GetDictionary(table string, args ...interface{}) (map[string]
 			case 0:
 				fields = v.([]string)
 			case 1:
-				conditions = v.(map[string]string)
+				conditions = v.(map[string]interface{})
 			case 2:
 				orderby = v.(string)
 			}
@@ -224,33 +225,11 @@ func (this *MySql) GetDictionary(table string, args ...interface{}) (map[string]
 	return this.GetRow(querysql, arguments...)
 }
 
-func (this *MySql) buildSql(table string, fields []string, conditions map[string]string, orderby, limit string) (string, []interface{}) {
-	var arguments []interface{} = make([]interface{}, 0)
+func (this *MySql) buildSql(table string, fields []string, conditions map[string]interface{}, orderby, limit string) (string, []interface{}) {
 	//拼接field部分
 	var fieldstr string = "*"
 	if !Empty(fields) {
 		fieldstr = strings.Join(fields, ", ")
-	}
-
-	//拼接condition条件部分
-	var condlist []string = make([]string, 0)
-	for k, v := range conditions {
-		vlist := StringToList(v)
-		if len(vlist) == 1 {
-			arguments = append(arguments, vlist[0])
-			condlist = append(condlist, k+"=?")
-		} else if len(vlist) > 1 {
-			placeholders := make([]string, 0)
-			for _, val := range vlist {
-				arguments = append(arguments, val)
-				placeholders = append(placeholders, "?")
-			}
-			condlist = append(condlist, k+" IN("+strings.Join(placeholders, ",")+")")
-		}
-	}
-	var condstr string = ""
-	if !Empty(condlist) {
-		condstr = " WHERE " + strings.Join(condlist, " AND ")
 	}
 
 	//order by
@@ -258,13 +237,48 @@ func (this *MySql) buildSql(table string, fields []string, conditions map[string
 		orderby = " ORDER BY " + orderby
 	}
 
+	//定位where子句部分
+	where, arguments := this.buildWhere(conditions)
+
 	//limit
 	if !Empty(limit) {
 		limit = " LIMIT " + limit
 	}
-	querysql := "SELECT " + fieldstr + " FROM " + table + condstr + orderby + limit
+	querysql := "SELECT " + fieldstr + " FROM " + table + where + orderby + limit
 	this.checkSQL(querysql)
 	return querysql, arguments
+}
+
+//通过条件的k-v形式获取SQL中的where子句部分
+//返回包括两部分: 1、where子句拼装并包括?占位符；2、?占位符参数列表
+func (this *MySql) buildWhere(conditions map[string]interface{}) (where string, args []interface{}) {
+	//拼接condition条件部分
+	var condlist []string = make([]string, 0)
+	for k, v := range conditions {
+		switch v.(type) {
+		case string:
+			v := v.(string)
+			vlist := StringToList(v)
+			if len(vlist) == 1 {
+				args = append(args, vlist[0])
+				condlist = append(condlist, k+"=?")
+			} else if len(vlist) > 1 {
+				placeholders := make([]string, 0)
+				for _, val := range vlist {
+					args = append(args, val)
+					placeholders = append(placeholders, "?")
+				}
+				condlist = append(condlist, k+" IN("+strings.Join(placeholders, ",")+")")
+			}
+		default:
+			args = append(args, v)
+			condlist = append(condlist, k+"=?")
+		}
+	}
+	if !Empty(condlist) {
+		where = " WHERE " + strings.Join(condlist, " AND ")
+	}
+	return
 }
 
 //根据db.Query的查询结果，组装成一个关联key的数据集，数据类型[]map[string]string
@@ -351,10 +365,96 @@ func (this *MySql) Insert(table string, data map[string]interface{}) (int64, err
 	if err != nil {
 		return 0, err
 	}
-	log.Println(columns)
-	//TODO
+	for key, _ := range data {
+		if _, ok := columns[key]; !ok {
+			delete(data, key)
+		}
+	}
+	if Empty(data) {
+		return 0, errors.New("insert data invalid.")
+	}
 
-	return int64(64), nil
+	fields := make([]string, 0)
+	args := make([]interface{}, 0)
+	placeholders := make([]string, 0)
+	for key, value := range data {
+		fields = append(fields, key)
+		args = append(args, value)
+		placeholders = append(placeholders, "?")
+	}
+	var sql string = "INSERT INTO " + table + "(" + strings.Join(fields, ", ") + ") VALUES(" + strings.Join(placeholders, ", ") + ")"
+	result, err := this.db.Exec(sql, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+func (this *MySql) Update(table string, data map[string]interface{}, conditions map[string]interface{}) (int64, error) {
+	columns, err := this.GetTableColumns(table)
+	if err != nil {
+		return 0, err
+	}
+
+	//数据过滤
+	for key, _ := range data {
+		if _, ok := columns[key]; !ok {
+			delete(data, key)
+		}
+	}
+
+	//检查过滤后的数据是否为空
+	if Empty(data) {
+		return 0, errors.New("update data invalid")
+	}
+
+	args := make([]interface{}, 0)
+
+	//拼装待更新的数据
+	fields := make([]string, 0)
+	for key, value := range data {
+		fields = append(fields, key+"=?")
+		args = append(args, value)
+	}
+
+	//拼装where子句
+	where, arguments := this.buildWhere(conditions)
+	if !Empty(arguments) {
+		args = append(args, arguments...)
+	}
+
+	var sql string = "UPDATE " + table + " SET " + strings.Join(fields, ", ") + where
+	this.checkSQL(sql)
+
+	return this.UDExec(sql, args...)
+}
+
+//删除数据库记录，如果删除成功，则返回影响的记录条数
+func (this *MySql) Delete(table string, conditions map[string]interface{}) (int64, error) {
+	where, args := this.buildWhere(conditions)
+	var sql string = "DELETE FROM " + table + where
+	this.checkSQL(sql)
+	return this.UDExec(sql, args...)
+}
+
+//执行一条写入的SQL语句，如果成功则返回上次写入的主键ID
+func (this *MySql) InsertExec(sql string, args ...interface{}) (int64, error) {
+	this.checkSQL(sql)
+	result, err := this.db.Exec(sql, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+//执行更新或删除的SQL语句，如果成功则返回影响的记录条数
+func (this *MySql) UDExec(sql string, args ...interface{}) (int64, error) {
+	this.checkSQL(sql)
+	result, err := this.db.Exec(sql, args...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 //获取一个表的列信息，字段名称为key，值为字段信息k-v
