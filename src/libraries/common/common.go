@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -133,4 +134,14 @@ func BuildKeyMd5(args ...interface{}) string {
 	}
 	//按base-16形式解析并返回字符串
 	return fmt.Sprintf("%x", md5.Sum(bytes))
+}
+
+//设置可使用的CPU核数，默认只使用一个CPU核心
+func SetCPUNum() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+}
+
+//获取一个浮点数，保留小数点后n位精度后的字符串值
+func Round(val float64, precision int) string {
+	return fmt.Sprintf("%."+strconv.Itoa(precision)+"f", val)
 }

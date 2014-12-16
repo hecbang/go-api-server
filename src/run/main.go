@@ -1,12 +1,11 @@
 package main
 
 import (
-	"const/path"
-	"encoding/json"
 	"fmt"
 	"libraries/common"
 	"log"
 	"runtime"
+	"time"
 )
 
 type DbItem struct {
@@ -15,6 +14,7 @@ type DbItem struct {
 }
 
 func main() {
+	common.SetCPUNum()
 	defer func() {
 		if r := recover(); r != nil {
 			var buf []byte = make([]byte, 1024)
@@ -24,27 +24,27 @@ func main() {
 
 		}
 	}()
-
-	filepath := path.CONFIG_PATH + "db.json"
-	content, err := common.Read(filepath)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	var v map[string]DbItem
-	if err := json.Unmarshal(content, &v); err != nil {
-		log.Fatal(err.Error())
-	}
+	start := time.Now().UnixNano()
 
 	db := common.NewMySql()
+	//db.Begin()
 	//list, err := db.GetList("ttt", []string{}, map[string]interface{}{"Id": 4, "Name": "helloworld"})
 	//if err != nil {
 	//	log.Fatal(err.Error())
 	//}
 	//fmt.Println(list)
-	rowsAffected, err := db.Delete("ttt", map[string]interface{}{})
+	lastInsertId, err := db.Insert("ttt", map[string]interface{}{"Number": 43, "Name": "yorkershi", "Point": 8.8})
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	fmt.Println(rowsAffected)
+	info, err1 := db.GetDictionary("ttt", []string{}, map[string]interface{}{"Id": lastInsertId})
+	if err1 != nil {
+		log.Fatalln(err1.Error())
+	}
+	fmt.Println(info)
+	//db.Commit()
+	fmt.Println(lastInsertId)
+	end := time.Now().UnixNano()
+	fmt.Println(common.Round((float64(end)-float64(start))/1000/1000, 3), "ms")
 
 }

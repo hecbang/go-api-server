@@ -7,12 +7,13 @@ package common
 import (
 	"const/path"
 	"database/sql"
-	//"fmt"
 	"errors"
 	_ "github.com/go-mysql-driver"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
 var db map[string]*sql.DB
@@ -22,8 +23,13 @@ func init() {
 }
 
 type MySql struct {
-	db     *sql.DB
-	optype string
+	db          *sql.DB //数据库操作
+	tx          *sql.Tx //带事务的数据库操作
+	txIndex     int     //事务记数器，只有当txIndex=0才会触发Begin动作，只有当txIndex=1才会触发Commit动作
+	optype      string  //操作类型，分Master或Slave
+	dbschema    string  //数据库连接schema
+	activetime  int64   //上次建立连接的时间点，需要一种机制来检测客户端与mysql服务端连接的有效性
+	waittimeout int64   //mysql服务器空闲等待时长
 }
 
 //创建一个默认的mysql操作实例
@@ -50,7 +56,7 @@ func NewMySqlInstance(schema string, conntype string) *MySql {
 		//建立一个新连接到mysql
 		connect(schema, conntype)
 	}
-	return &MySql{db: db[key], optype: conntype}
+	return &MySql{db: db[key], dbschema: schema, optype: conntype, activetime: time.Now().Unix()}
 }
 
 //建立数据库连接
@@ -89,10 +95,58 @@ func connect(schema string, contype string) {
 	db[key] = dbinit
 }
 
+//检查MySql实例的连接是否还在活跃时间范围内
+func (this *MySql) checkActive() {
+	var now int64 = time.Now().Unix()
+	if this.tx != nil {
+		//如果存在事务会话，则不再进行连接检查
+		this.activetime = now
+		return
+	}
+
+	//从MySql的wait_timeout变量中定位waittimeout
+	if this.waittimeout == 0 {
+		rows, err := this.db.Query("SHOW VARIABLES LIKE 'wait_timeout'")
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		defer rows.Close()
+		result, err := this.fetch(rows)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		if !Empty(result) {
+			timeout, err := strconv.Atoi(result[0]["Value"])
+			if err != nil {
+				log.Fatalln(err.Error())
+			}
+			this.waittimeout = int64(timeout)
+		}
+	}
+
+	if now-this.activetime > this.waittimeout-2 {
+		//此时认为数据库连接已经超时了，重新进行一次连接
+		connect(this.dbschema, this.optype)
+		var key string = BuildKeyMd5(this.dbschema, this.optype)
+		this.db = db[key]
+	}
+
+	//设置当前时间为最新活跃点
+	this.activetime = now
+}
+
 //根据所提供的sql语句获取数据列表
-func (this *MySql) GetAll(sql string, args ...interface{}) ([]map[string]string, error) {
-	this.checkSQL(sql)
-	rows, err := this.db.Query(sql, args...)
+func (this *MySql) GetAll(querysql string, args ...interface{}) ([]map[string]string, error) {
+	this.checkSQL(querysql)
+	this.checkActive()
+	var rows *sql.Rows
+	var err error
+	if this.tx != nil {
+		rows, err = this.tx.Query(querysql, args...)
+	} else {
+		rows, err = this.db.Query(querysql, args...)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -101,9 +155,17 @@ func (this *MySql) GetAll(sql string, args ...interface{}) ([]map[string]string,
 }
 
 //根据所提供的sql语句获取数据列表
-func (this *MySql) GetAllArray(sql string, args ...interface{}) ([]map[int]string, error) {
-	this.checkSQL(sql)
-	rows, err := this.db.Query(sql, args...)
+func (this *MySql) GetAllArray(querysql string, args ...interface{}) ([]map[int]string, error) {
+	this.checkSQL(querysql)
+	this.checkActive()
+	var rows *sql.Rows
+	var err error
+	if this.tx != nil {
+		rows, err = this.tx.Query(querysql, args...)
+	} else {
+		rows, err = this.db.Query(querysql, args...)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -112,12 +174,20 @@ func (this *MySql) GetAllArray(sql string, args ...interface{}) ([]map[int]strin
 }
 
 //根据SQL获取一行数据
-func (this *MySql) GetRow(sql string, args ...interface{}) (map[string]string, error) {
-	this.checkSQL(sql)
-	if !strings.Contains(strings.ToLower(sql), "limit") {
-		sql += " LIMIT 1"
+func (this *MySql) GetRow(querysql string, args ...interface{}) (map[string]string, error) {
+	this.checkSQL(querysql)
+	if !strings.Contains(strings.ToLower(querysql), "limit") {
+		querysql += " LIMIT 1"
 	}
-	rows, err := this.db.Query(sql, args...)
+	this.checkActive()
+	var rows *sql.Rows
+	var err error
+	if this.tx != nil {
+		rows, err = this.tx.Query(querysql, args...)
+	} else {
+		rows, err = this.db.Query(querysql, args...)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -135,12 +205,19 @@ func (this *MySql) GetRow(sql string, args ...interface{}) (map[string]string, e
 }
 
 //根据SQL获取一行数据
-func (this *MySql) GetRowArray(sql string, args ...interface{}) (map[int]string, error) {
-	this.checkSQL(sql)
-	if !strings.Contains(strings.ToLower(sql), "limit") {
-		sql += " LIMIT 1"
+func (this *MySql) GetRowArray(querysql string, args ...interface{}) (map[int]string, error) {
+	this.checkSQL(querysql)
+	if !strings.Contains(strings.ToLower(querysql), "limit") {
+		querysql += " LIMIT 1"
 	}
-	rows, err := this.db.Query(sql, args...)
+	this.checkActive()
+	var rows *sql.Rows
+	var err error
+	if this.tx != nil {
+		rows, err = this.tx.Query(querysql, args...)
+	} else {
+		rows, err = this.db.Query(querysql, args...)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -383,11 +460,7 @@ func (this *MySql) Insert(table string, data map[string]interface{}) (int64, err
 		placeholders = append(placeholders, "?")
 	}
 	var sql string = "INSERT INTO " + table + "(" + strings.Join(fields, ", ") + ") VALUES(" + strings.Join(placeholders, ", ") + ")"
-	result, err := this.db.Exec(sql, args...)
-	if err != nil {
-		return 0, err
-	}
-	return result.LastInsertId()
+	return this.InsertExec(sql, args...)
 }
 
 func (this *MySql) Update(table string, data map[string]interface{}, conditions map[string]interface{}) (int64, error) {
@@ -438,9 +511,17 @@ func (this *MySql) Delete(table string, conditions map[string]interface{}) (int6
 }
 
 //执行一条写入的SQL语句，如果成功则返回上次写入的主键ID
-func (this *MySql) InsertExec(sql string, args ...interface{}) (int64, error) {
-	this.checkSQL(sql)
-	result, err := this.db.Exec(sql, args...)
+func (this *MySql) InsertExec(execsql string, args ...interface{}) (int64, error) {
+	this.checkSQL(execsql)
+	this.checkActive()
+	var result sql.Result
+	var err error
+	if this.tx != nil {
+		result, err = this.tx.Exec(execsql, args...)
+	} else {
+		result, err = this.db.Exec(execsql, args...)
+	}
+
 	if err != nil {
 		return 0, err
 	}
@@ -448,9 +529,17 @@ func (this *MySql) InsertExec(sql string, args ...interface{}) (int64, error) {
 }
 
 //执行更新或删除的SQL语句，如果成功则返回影响的记录条数
-func (this *MySql) UDExec(sql string, args ...interface{}) (int64, error) {
-	this.checkSQL(sql)
-	result, err := this.db.Exec(sql, args...)
+func (this *MySql) UDExec(execsql string, args ...interface{}) (int64, error) {
+	this.checkSQL(execsql)
+	this.checkActive()
+	var result sql.Result
+	var err error
+	if this.tx != nil {
+		result, err = this.tx.Exec(execsql, args...)
+	} else {
+		result, err = this.db.Exec(execsql, args...)
+	}
+
 	if err != nil {
 		return 0, err
 	}
@@ -479,4 +568,36 @@ func (this *MySql) checkSQL(sql string) {
 			panic("insert|update|delete|alter|truncate|drop operation is not allowed in slave.")
 		}
 	}
+}
+
+//开始一个事务，开始一个事务和提交、回滚事务必须一一对应
+func (this *MySql) Begin() {
+	if this.txIndex == 0 {
+		var err error
+		this.tx, err = this.db.Begin()
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+	}
+	this.txIndex++
+}
+
+//提交一个事务
+func (this *MySql) Commit() {
+	if this.txIndex == 1 {
+		if err := this.tx.Commit(); err != nil {
+			log.Fatalln(err.Error())
+		}
+		this.tx = nil
+	}
+	this.txIndex--
+}
+
+//事务回滚
+func (this *MySql) Rollback() {
+	if err := this.tx.Rollback(); err != nil {
+		log.Fatalln(err.Error())
+	}
+	this.txIndex = 0
+	this.tx = nil
 }
