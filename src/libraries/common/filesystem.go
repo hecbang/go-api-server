@@ -5,6 +5,8 @@
 package common
 
 import (
+	"bufio"
+	"io"
 	"io/ioutil"
 	"os"
 )
@@ -24,4 +26,27 @@ func FileExists(filename string) bool {
 //@return []byte content 读取的文件内容
 func Read(filename string) ([]byte, error) {
 	return ioutil.ReadFile(filename)
+}
+
+//将一个文件中的内容读取到[]string中，并返回
+func ReadLine(filename string) ([]string, error) {
+	var retval []string = make([]string, 0)
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	var bufrd *bufio.Reader = bufio.NewReader(file)
+
+	for {
+		line, err := bufrd.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		retval = append(retval, line)
+	}
+	return retval, nil
 }
