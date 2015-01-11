@@ -1,0 +1,13 @@
+{
+	"concurrence":{
+		"targetdbschema":"target",
+		"groupname":"ThreeGalera",
+		"serverParameter":"4Core/2G",
+		"amount":5000,
+		"concurrence":{
+			"start":1,
+			"max":150,
+			"offset":10
+		}
+	}
+}

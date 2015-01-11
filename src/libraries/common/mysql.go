@@ -34,18 +34,25 @@ type MySql struct {
 
 //创建一个默认的mysql操作实例
 func NewMySql() *MySql {
-	return NewMySqlInstance("default", "Master")
+	return NewMySqlInstance("default")
 }
 
 //创建一个默认的mysql查询实例
 func NewQuery() *MySql {
-	return NewMySqlInstance("default", "Slave")
+	return NewMySqlInstance("default")
+}
+
+func NewMySqlInstance(schema string) *MySql {
+	return _newMySqlInstance(schema, "Master")
+}
+func NewQueryInstance(schema string) *MySql {
+	return _newMySqlInstance(schema, "Slave")
 }
 
 //实例化一个mysql实例
 //@param string schema 数据库连接方案
 //@param string conntype 数据库连接类型，范围: Master, Slave
-func NewMySqlInstance(schema string, conntype string) *MySql {
+func _newMySqlInstance(schema string, conntype string) *MySql {
 	if !InList(conntype, []string{"Master", "Slave"}) {
 		panic("function common.NewSqlInstance's second argument must be Master or Slave.")
 	}

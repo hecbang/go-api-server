@@ -21,10 +21,6 @@
         ]
     },
     "target":{
-        "master":"mysql:mysql888@tcp(192.168.1.131:3306)/test_target_db?charset=utf8",
-        "slave":[
-            "mysql:mysql888@tcp(192.168.1.131:3306)/test_target_db?charset=utf8",
-            "mysql:mysql888@tcp(192.168.1.131:3306)/test_target_db?charset=utf8"
-        ]
+        "master":"mysql:mysql888@tcp(192.168.1.131:3307)/test_target_db?charset=utf8"
     }
 }

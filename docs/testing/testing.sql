@@ -3,15 +3,15 @@ use testdata;
 drop table if exists web;
 create table web(
 Id int not null primary key auto_increment,
-GroupName varchar(64) not null default '' comment '²âÊÔÏµÁĞ×éÃû³Æ',
-Total int not null default 0 comment '×ÜÇëÇóÁ¿',
-Concurrence int not null default 0 comment '²¢·¢Á¿',
-RequestData text not null default '' comment '²âÊÔÇëÇóÊı¾İ',
-ServerParameters text not null default '' comment '·şÎñÆ÷²ÎÊıÉèÖÃ',
-ElapseTime float not null default 0 comment '×ÜÓÃÊ±',
-QPS float not null default 0 comment 'Æ½¾ùÃ¿ÃëÍê³ÉÇëÇóÊı',
-TPQ float not null default 0 comment 'Æ½¾ùÃ¿´ÎÇëÇóÓÃÊ±(ms)',
-LogTime datetime not null default 0 comment '¼ÇÂ¼Ê±¼ä',
+GroupName varchar(64) not null default '' comment 'æµ‹è¯•ç³»åˆ—ç»„åç§°',
+Total int not null default 0 comment 'æ€»è¯·æ±‚é‡',
+Concurrence int not null default 0 comment 'å¹¶å‘é‡',
+ElapseTime float not null default 0 comment 'æ€»ç”¨æ—¶',
+QPS float not null default 0 comment 'å¹³å‡æ¯ç§’å®Œæˆè¯·æ±‚æ•°',
+TPQ float not null default 0 comment 'å¹³å‡æ¯æ¬¡è¯·æ±‚ç”¨æ—¶(ms)',
+LogTime datetime not null default 0 comment 'è®°å½•æ—¶é—´',
+RequestData text not null default '' comment 'æµ‹è¯•è¯·æ±‚æ•°æ®',
+ServerParameters text not null default '' comment 'æœåŠ¡å™¨å‚æ•°è®¾ç½®',
 key IdxGroupName(GroupName),
 key IdxLogTime(LogTime)
 )engine=innodb charset=utf8;
@@ -19,16 +19,16 @@ key IdxLogTime(LogTime)
 drop table if exists db;
 create table db(
 Id int not null primary key auto_increment,
-GroupName varchar(64) not null default '' comment '²âÊÔÏµÁĞ×éÃû³Æ',
-Total int not null default 0 comment '×ÜÇëÇóÁ¿',
-Concurrence int not null default 0 comment '²¢·¢Á¿',
-ExistDataTotal int unsigned not null default 0 comment 'Ä¿±êÒÑ´æÔÚÊı¾İÁ¿£¬Ö÷ÒªÓÃÓÚ²âÊÔ»ù´¡Êı¾İÁ¿²»Ò»ÑùµÄÇé¿ö',
-RequestData text not null default '' comment '²âÊÔÇëÇóÊı¾İ',
-ServerParameters text not null default '' comment '·şÎñÆ÷²ÎÊıÉèÖÃ',
-ElapseTime float not null default 0 comment '×ÜÓÃÊ±',
-QPS float not null default 0 comment 'Æ½¾ùÃ¿ÃëÍê³ÉÇëÇóÊı',
-TPQ float not null default 0 comment 'Æ½¾ùÃ¿´ÎÇëÇóÓÃÊ±(ms)',
-LogTime datetime not null default 0 comment '¼ÇÂ¼Ê±¼ä',
+GroupName varchar(64) not null default '' comment 'æµ‹è¯•ç³»åˆ—ç»„åç§°',
+Total int not null default 0 comment 'æ€»è¯·æ±‚é‡',
+Concurrence int not null default 0 comment 'å¹¶å‘é‡',
+ElapseTime float not null default 0 comment 'æ€»ç”¨æ—¶',
+QPS float not null default 0 comment 'å¹³å‡æ¯ç§’å®Œæˆè¯·æ±‚æ•°',
+TPQ float not null default 0 comment 'å¹³å‡æ¯æ¬¡è¯·æ±‚ç”¨æ—¶(ms)',
+LogTime datetime not null default 0 comment 'è®°å½•æ—¶é—´',
+ExistDataTotal int unsigned not null default 0 comment 'ç›®æ ‡å·²å­˜åœ¨æ•°æ®é‡ï¼Œä¸»è¦ç”¨äºæµ‹è¯•åŸºç¡€æ•°æ®é‡ä¸ä¸€æ ·çš„æƒ…å†µ',
+RequestData text not null default '' comment 'æµ‹è¯•è¯·æ±‚æ•°æ®',
+ServerParameters text not null default '' comment 'æœåŠ¡å™¨å‚æ•°è®¾ç½®',
 key IdxGroupName(GroupName),
 key IdxLogTime(LogTime)
 )engine=innodb charset=utf8;
