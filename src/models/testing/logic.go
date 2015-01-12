@@ -8,7 +8,7 @@ import (
 //DB并发测试
 //n 测试总次数
 //c 并发量
-func Concurrence(schemaname string, targetdbschema string, n int, c int) {
+func Concurrence(groupid int64, schemaname string, targetdbschema string, n int, c int) {
 	//先清空写入的目标数据库
 	db := common.NewMySqlInstance(targetdbschema)
 	_, err := db.UDExec("truncate table target")
@@ -16,7 +16,7 @@ func Concurrence(schemaname string, targetdbschema string, n int, c int) {
 		log.Fatalln(err.Error())
 	}
 
-	timer := &common.TimeDiff{}
+	timer := common.NewTimer()
 	timer.Start()
 
 	//每个线程执行多少次
@@ -51,16 +51,14 @@ func Concurrence(schemaname string, targetdbschema string, n int, c int) {
 	elapse := timer.Elapse("ms")
 
 	result := map[string]interface{}{
-		"GroupName":        groupname,
-		"Total":            n,
-		"Concurrence":      c,
-		"ExistDataTotal":   e,
-		"RequestData":      "",
-		"ServerParameters": svrparam,
-		"ElapseTime":       elapse,
-		"QPS":              common.Round(float64(n)/(float64(elapse)/1000), 2), //每秒处理请求数
-		"TPQ":              common.Round(float64(elapse)/float64(n), 2),        //平均每个请求用时多少ms
-		"LogTime":          common.Date("Y-m-d H:i:s"),
+		"GroupId":     groupid,
+		"Name":        schemaname,
+		"Total":       n,
+		"Concurrence": c,
+		"ElapseTime":  elapse,
+		"QPS":         common.Round(float64(n)/(float64(elapse)/1000), 2), //每秒处理请求数
+		"TPQ":         common.Round(float64(elapse)/float64(n), 2),        //平均每个请求用时多少ms
+		"LogTime":     common.Date("Y-m-d H:i:s"),
 	}
 	tdb := common.NewMySqlInstance("testdata")
 	tdb.Insert("db", result)

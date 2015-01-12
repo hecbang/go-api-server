@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"const/path"
-	"fmt"
 	"libraries/common"
 	"log"
 	"models/testing"
@@ -32,9 +31,39 @@ func (this *Testing) Concurrence() {
 
 	lastid, err := db.Insert("db_group", data)
 
+	schemaName, err := jq.String("schema", "name")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	targetSchemaDb, err := jq.String("schema", "db")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	amount, err := jq.Int("schema", "amount")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	start, err := jq.Int("schema", "start")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	offset, err := jq.Int("schema", "offset")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	max, err := jq.Int("schema", "max")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
 	c := start
 	for c < max {
-		testing.Concurrence(config["concurrence"].Groupname, config["concurrence"].ServerParameter, config["concurrence"].Targetdbschema, config["concurrence"].Amount, c)
+		testing.Concurrence(lastid, schemaName, targetSchemaDb, amount, c)
 		c = c + offset - (c % offset)
 	}
 }

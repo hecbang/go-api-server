@@ -4,17 +4,22 @@ import (
 	"time"
 )
 
-type TimeDiff struct {
+type Timer struct {
 	start int64
 }
 
 //记录并设置当前时间为开始时间点，单位nanosecond
-func (this *TimeDiff) Start() {
+func NewTimer() *Timer {
+	return &Timer{}
+}
+
+//设置开始时间点
+func (this *Timer) Start() {
 	this.start = time.Now().UnixNano()
 }
 
 //获取从之前设置的开始时间点到当前时间用时，参数支持单位s, ms, us, ns
-func (this *TimeDiff) Elapse(unit string) int64 {
+func (this *Timer) Elapse(unit string) int64 {
 	now := time.Now().UnixNano()
 	switch unit {
 	case "ns":
