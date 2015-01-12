@@ -2,8 +2,9 @@ package controllers
 
 import (
 	"const/path"
-	//"fmt"
+	"fmt"
 	"libraries/common"
+	"log"
 	"models/testing"
 )
 
@@ -11,24 +12,25 @@ type Testing struct {
 }
 
 func (this *Testing) Concurrence() {
-	type concurrence struct {
-		Start  int
-		Offset int
-		Max    int
-	}
-	type item struct {
-		Targetdbschema  string
-		Groupname       string
-		ServerParameter string
-		Amount          int
-		Concurrence     concurrence
-	}
-	var config map[string]item
-	common.LoadJson(path.CONFIG_PATH+"testing"+path.DS+"schema.json", &config)
+	jq := common.LoadJsonQuery(path.CONFIG_PATH + "testing" + path.DS + "concurrence.json")
 
-	start := config["concurrence"].Concurrence.Start
-	offset := config["concurrence"].Concurrence.Offset
-	max := config["concurrence"].Concurrence.Max
+	db := common.NewMySqlInstance("testdata")
+
+	name, err := jq.String("group", "name")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	parameter, err := jq.String("group", "parameter")
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	data := map[string]interface{}{
+		"Name":              name,
+		"SettingParameters": parameter,
+		"LogTime":           common.Date("Y-m-d H:i:s"),
+	}
+
+	lastid, err := db.Insert("db_group", data)
 
 	c := start
 	for c < max {

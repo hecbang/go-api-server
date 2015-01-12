@@ -1,0 +1,14 @@
+{
+	"group":{
+		"name":"集群并发测试1",
+		"parameter":"4Core/2G"
+	},
+	"schema":{
+		"db":"target",
+		"name":"1个节点",
+		"amount":5000,
+		"start":1,
+		"offset":10,
+		"max":150
+	}
+}

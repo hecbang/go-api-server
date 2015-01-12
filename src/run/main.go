@@ -11,10 +11,13 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage run [Method]")
+	if len(os.Args) != 3 {
+		fmt.Println("Usage run [class] [Method]")
 		os.Exit(1)
 	}
+
+	class := os.Args[1]
+	method := os.Args[2]
 
 	common.SetCPUNum()
 	defer func() {
@@ -31,10 +34,16 @@ func main() {
 	//setting controller structs
 	ctrls["testing"] = &controllers.Testing{}
 
-	m := os.Args[1]
-	f := reflect.ValueOf(ctrls["testing"]).MethodByName(m)
+	action, ok := ctrls[class]
+
+	if !ok {
+		fmt.Println("Class(", class, ") is invalid.")
+		os.Exit(1)
+	}
+
+	f := reflect.ValueOf(action).MethodByName(method)
 	if !f.IsValid() {
-		fmt.Println("Method '", m, "' is invalid.")
+		fmt.Println("Method '", method, "' is invalid.")
 		os.Exit(1)
 	}
 	var in []reflect.Value = make([]reflect.Value, 0)
