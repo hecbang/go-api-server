@@ -11,13 +11,15 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Println("Usage run [class] [Method]")
-		os.Exit(1)
+	var class string
+	var method string
+	if len(os.Args) == 2 {
+		class = os.Args[1]
+		method = "Index"
+	} else if len(os.Args) == 3 {
+		class = os.Args[1]
+		method = os.Args[2]
 	}
-
-	class := os.Args[1]
-	method := os.Args[2]
 
 	common.SetCPUNum()
 	defer func() {
@@ -33,6 +35,7 @@ func main() {
 
 	//setting controller structs
 	ctrls["testing"] = &controllers.Testing{}
+	ctrls["webserver"] = &controllers.Webserver{}
 
 	action, ok := ctrls[class]
 

@@ -1,6 +1,7 @@
 package testing
 
 import (
+	"fmt"
 	"libraries/common"
 	"log"
 )
@@ -39,16 +40,23 @@ func Concurrence(groupid int64, schemaname string, targetdbschema string, n int,
 				"LogTime": date,
 			}
 			for cyc := 0; cyc < cycleN; cyc++ {
-				db.Insert("target", data)
+				_, err := db.Insert("target", data)
+				if err != nil {
+					fmt.Println(err.Error())
+				}
 			}
 			ch <- 1
 		}(cycleN, chs[i])
 	}
 
+	fmt.Println("wait...")
 	for _, ch := range chs {
 		<-ch
 	}
+
 	elapse := timer.Elapse("ms")
+
+	fmt.Println("finished once concurrence, elapse ", elapse, "ms")
 
 	result := map[string]interface{}{
 		"GroupId":     groupid,

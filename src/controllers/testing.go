@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"const/path"
+	"fmt"
 	"libraries/common"
 	"log"
 	"models/testing"
@@ -28,8 +29,6 @@ func (this *Testing) Concurrence() {
 		"SettingParameters": parameter,
 		"LogTime":           common.Date("Y-m-d H:i:s"),
 	}
-
-	lastid, err := db.Insert("db_group", data)
 
 	schemaName, err := jq.String("schema", "name")
 	if err != nil {
@@ -61,8 +60,23 @@ func (this *Testing) Concurrence() {
 		log.Fatalln(err.Error())
 	}
 
+	//处理掉重复的记录
+	sql := "select db.Id, db.GroupId from db inner join db_group on db.GroupId=db_group.Id where db.Name=? and db_group.Name=?"
+	result, err := db.GetRow(sql, schemaName, name)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	if !common.Empty(result) {
+		db.Delete("db_group", map[string]interface{}{"Id": result["GroupId"]})
+		db.Delete("db", map[string]interface{}{"Id": result["Id"]})
+	}
+
+	lastid, err := db.Insert("db_group", data)
+
 	c := start
+	fmt.Println("max concurrence is ", max)
 	for c < max {
+		fmt.Println("Now, concurrence = ", c)
 		testing.Concurrence(lastid, schemaName, targetSchemaDb, amount, c)
 		c = c + offset - (c % offset)
 	}
