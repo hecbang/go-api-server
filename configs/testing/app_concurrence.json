@@ -1,0 +1,13 @@
+{
+	"group":{
+		"name":"Haproxy代理测试",
+		"parameter":"4Core/2G"
+	},
+	"schema":{		
+		"name":"1节点",
+		"amount":50000,
+		"start":1,
+		"offset":10,
+		"max":1000
+	}
+}

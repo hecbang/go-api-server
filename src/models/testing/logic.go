@@ -9,7 +9,7 @@ import (
 //DB并发测试
 //n 测试总次数
 //c 并发量
-func Concurrence(groupid int64, schemaname string, targetdbschema string, n int, c int) {
+func DbConcurrence(groupid int64, schemaname string, targetdbschema string, n int, c int) {
 	//先清空写入的目标数据库
 	db := common.NewMySqlInstance(targetdbschema)
 	_, err := db.UDExec("truncate table target")

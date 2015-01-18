@@ -8,7 +8,6 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
-	"github.com/jsonq"
 	"math/rand"
 	"reflect"
 	"runtime"
@@ -84,12 +83,6 @@ func LoadJson(filename string, v interface{}) error {
 		return err
 	}
 	return json.Unmarshal(bytes, &v)
-}
-
-func LoadJsonQuery(filename string) *jsonq.JsonQuery {
-	var data map[string]interface{}
-	LoadJson(filename, &data)
-	return jsonq.NewQuery(data)
 }
 
 //获取memory使用量，单位byte
