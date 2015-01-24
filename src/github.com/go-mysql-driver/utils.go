@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -215,6 +216,13 @@ func parseDSNParams(cfg *config, params string) (err error) {
 			}
 			cfg.collation = collation
 			break
+		
+		case "columnsWithAlias":
+			var isBool bool
+			cfg.columnsWithAlias, isBool = readBool(value)
+			if !isBool {
+				return fmt.Errorf("Invalid Bool value: %s", value)
+			}
 
 		// Time Location
 		case "loc":
@@ -244,6 +252,13 @@ func parseDSNParams(cfg *config, params string) (err error) {
 				if strings.ToLower(value) == "skip-verify" {
 					cfg.tls = &tls.Config{InsecureSkipVerify: true}
 				} else if tlsConfig, ok := tlsConfigRegister[value]; ok {
+					if len(tlsConfig.ServerName) == 0 && !tlsConfig.InsecureSkipVerify {
+						host, _, err := net.SplitHostPort(cfg.addr)
+						if err == nil {
+							tlsConfig.ServerName = host
+						}
+					}
+
 					cfg.tls = tlsConfig
 				} else {
 					return fmt.Errorf("Invalid value / unknown config name: %s", value)

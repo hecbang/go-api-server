@@ -3,7 +3,7 @@ package main
 import (
 	"controllers"
 	"fmt"
-	"libraries/common"
+	//"libraries/common"
 	"log"
 	"os"
 	"reflect"
@@ -42,7 +42,7 @@ func main() {
 	}
 
 	//设置可用的cpu核心数
-	common.SetCPUNum()
+	//common.SetCPUNum()
 
 	defer func() {
 		if r := recover(); r != nil {

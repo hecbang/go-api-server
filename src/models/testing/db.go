@@ -5,52 +5,72 @@ import (
 	"fmt"
 	"libraries/common"
 	"log"
+	"strings"
 )
 
 func DatabaseConcurrence() {
 	jq := common.NewJsonQuery(path.CONFIG_PATH + "testing" + path.DS + "db_concurrence.json")
 
-	db := common.NewMySqlInstance("testdata")
-
 	name := jq.String("group", "name")
 	parameter := jq.String("group", "parameter")
 
-	data := map[string]interface{}{
-		"Name":              name,
-		"SettingParameters": parameter,
-		"LogTime":           common.Date("Y-m-d H:i:s"),
-	}
+	schemaNameFormat := jq.String("schema", "name")
 
-	schemaName := jq.String("schema", "name")
 	targetSchemaDb := jq.String("schema", "db")
+
+	//测试重启执行次数
+	times := jq.Int("schema", "times")
 	amount := jq.Int("schema", "amount")
 	start := jq.Int("schema", "start")
 	offset := jq.Int("schema", "offset")
 	max := jq.Int("schema", "max")
 
-	//处理掉重复的记录
-	sql := "select db.Id, db.GroupId from db inner join db_group on db.GroupId=db_group.Id where db.Name=? and db_group.Name=?"
-	result, err := db.GetRow(sql, schemaName, name)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	if !common.Empty(result) {
-		db.Delete("db_group", map[string]interface{}{"Id": result["GroupId"]})
-		db.Delete("db", map[string]interface{}{"Id": result["Id"]})
+	var schemaName string
+	for seq := 1; seq <= times; seq++ {
+		//给测试方案名称加上顺号，标识不同的测试次数
+		if times == 1 {
+			schemaName = strings.Replace(schemaNameFormat, "(%d)", "", 1)
+		} else {
+			fmt.Println(">>>>>>database pressure test>>>>>>", seq)
+			schemaName = fmt.Sprintf(schemaNameFormat, seq)
+		}
+
+		db := common.NewMySqlInstance("testdata")
+		//处理掉重复的记录
+		sql := "select db.GroupId from db inner join db_group on db.GroupId=db_group.Id where db.Name=? and db_group.Name=?"
+		result, err := db.GetRow(sql, schemaName, name)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		if !common.Empty(result) {
+			db.Delete("db_group", map[string]interface{}{"Id": result["GroupId"]})
+			db.Delete("db", map[string]interface{}{"GroupId": result["GroupId"]})
+		}
+
+		//写入分组数据
+		data := map[string]interface{}{
+			"Name":              name,
+			"SettingParameters": parameter,
+			"LogTime":           common.Date("Y-m-d H:i:s"),
+		}
+		lastid, err := db.Insert("db_group", data)
+		if err != nil {
+			panic(err.Error())
+		}
+
+		c := start
+		fmt.Println("max concurrence is ", max)
+		for c < max {
+			fmt.Println("Now, concurrence = ", c)
+			dbconcurrence(lastid, schemaName, targetSchemaDb, amount, c)
+			if c < 100 {
+				c = c + 10 - (c % 10)
+			} else {
+				c = c + offset - (c % offset)
+			}
+		}
 	}
 
-	lastid, err := db.Insert("db_group", data)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	c := start
-	fmt.Println("max concurrence is ", max)
-	for c < max {
-		fmt.Println("Now, concurrence = ", c)
-		dbconcurrence(lastid, schemaName, targetSchemaDb, amount, c)
-		c = c + offset - (c % offset)
-	}
 }
 
 //DB并发测试
@@ -74,35 +94,35 @@ func dbconcurrence(groupid int64, schemaname string, targetdbschema string, n in
 	//每个线程执行多少次
 	segs := n / c
 
-	var chs []chan int = make([]chan int, c)
+	var chs chan int = make(chan int, c)
 	var cycleN int
 	for i := 0; i < c; i++ {
 		cycleN = segs
 		if i == c-1 {
 			cycleN += n % c
 		}
-		chs[i] = make(chan int)
-		go func(cycleN int, ch chan int) {
+		go func(cycleN int, chs chan int) {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("%v", r)
+					chs <- 1
+				}
+			}()
 			db := common.NewMySqlInstance(targetdbschema)
 			date := common.Date("Y-m-d H:i:s")
-			data := map[string]interface{}{
-				"Num":     98,
-				"String":  "hello,yorkershi",
-				"LogTime": date,
-			}
 			for cyc := 0; cyc < cycleN; cyc++ {
-				_, err := db.Insert("target", data)
+				_, err := db.InsertExec("insert into target(Num, String, LogTime) values(?,?,?)", 98, "helloworld", date)
 				if err != nil {
 					fmt.Println(err.Error())
 				}
 			}
-			ch <- 1
-		}(cycleN, chs[i])
+			chs <- 1
+		}(cycleN, chs)
 	}
 
 	fmt.Println("wait...")
-	for _, ch := range chs {
-		<-ch
+	for i := 0; i < c; i++ {
+		<-chs
 	}
 
 	elapse := timer.Elapse("ms")
