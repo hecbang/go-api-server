@@ -8,15 +8,15 @@ import (
 	"strings"
 )
 
+//数据库测试并发执行逻辑
 func DatabaseConcurrence() {
 	jq := common.NewJsonQuery(path.CONFIG_PATH + "testing" + path.DS + "db_concurrence.json")
 
 	name := jq.String("group", "name")
 	parameter := jq.String("group", "parameter")
-
 	schemaNameFormat := jq.String("schema", "name")
-
 	targetSchemaDb := jq.String("schema", "db")
+	is_query := jq.Int("is_query")
 
 	//测试重启执行次数
 	times := jq.Int("schema", "times")
@@ -62,7 +62,22 @@ func DatabaseConcurrence() {
 		fmt.Println("max concurrence is ", max)
 		for c < max {
 			fmt.Println("Now, concurrence = ", c)
-			dbconcurrence(lastid, schemaName, targetSchemaDb, amount, c)
+			if is_query == 0 {
+				dbconcurrence(lastid, schemaName, targetSchemaDb, amount, c)
+			} else if is_query == 1 {
+                queryconcurrence(lastid, schemaName, targetSchemaDb, amount, c)                
+			} else {
+                //example is_query=2
+                //slow query
+                adjust := c*32
+                if adjust < amount {
+                    fmt.Println("Adjust amount to ", adjust)
+                    queryconcurrence(lastid, schemaName, targetSchemaDb, adjust, c)   
+                } else {
+                    queryconcurrence(lastid, schemaName, targetSchemaDb, amount, c)
+                }
+            }
+
 			if c < 100 {
 				c = c + 10 - (c % 10)
 			} else {
@@ -74,7 +89,7 @@ func DatabaseConcurrence() {
 }
 
 //DB并发测试
-//n 测试总次数
+//n 测试写入总次数
 //c 并发量
 func dbconcurrence(groupid int64, schemaname string, targetdbschema string, n int, c int) {
 	if c > n {
@@ -128,6 +143,97 @@ func dbconcurrence(groupid int64, schemaname string, targetdbschema string, n in
 	elapse := timer.Elapse("ms")
 
 	fmt.Println("finished once concurrence, elapse ", elapse, "ms")
+
+	result := map[string]interface{}{
+		"GroupId":     groupid,
+		"Name":        schemaname,
+		"Total":       n,
+		"Concurrence": c,
+		"ElapseTime":  elapse,
+		"QPS":         common.Round(float64(n)/(float64(elapse)/1000), 2), //每秒处理请求数
+		"TPQ":         common.Round(float64(elapse)/float64(n), 2),        //平均每个请求用时多少ms
+		"LogTime":     common.Date("Y-m-d H:i:s"),
+	}
+	tdb := common.NewMySqlInstance("testdata")
+	tdb.Insert("db", result)
+}
+
+//DB并发测试
+//n 测试查询总次数
+//c 并发量
+func queryconcurrence(groupid int64, schemaname string, targetdbschema string, n int, c int) {
+	if c > n {
+		panic("error: c>n")
+	}
+
+	//获取要查询的目标数据表和字段
+	fmt.Println("Initialization data...")
+	jq := common.NewJsonQuery(path.CONFIG_PATH + "testing" + path.DS + "db_concurrence.json")
+	table := jq.String("query", "table")
+	field := jq.String("query", "condition_field")	
+
+	db := common.NewMySqlInstance(targetdbschema)
+	keylist, err := db.GetAll("select distinct "+field+" from "+table+" limit ?", n)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	if len(keylist) < n {
+		log.Fatalln("Failed! Test data is less than ", n)
+	}
+
+	seeds := make([]string, n)
+	for i, itm := range keylist {
+		seeds[i] = itm[field]
+	}
+
+	timer := common.NewTimer()
+	timer.Start()
+
+	//每个线程执行多少次
+	segs := n / c
+
+	var chs chan int = make(chan int, c)
+	var cycleN int
+	for i := 0; i < c; i++ {
+		cycleN = segs
+		if i == c-1 {
+			cycleN += n % c
+		}
+		go func(table string, field string, seeds []string, page int, segs int, cycleN int, chs chan int) {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("%v", r)
+					chs <- 1
+				}
+			}()
+			db := common.NewMySqlInstance(targetdbschema)
+			//开始查询
+			for k := 0; k < cycleN; k++ {
+				key := segs * page
+				//res, err := db.GetAll("select * from "+table+" where "+field+"=?", seeds[key])
+                sql := "SELECT task_center_done_info.InstanceId, task_center_done_info.InstanceDesc, task_center_done_info.SourceSystem, task_center_done_info.Starter, task_center_done_info.HandleUrl, task_center_done_info.Owners FROM task_center_done_info WHERE task_center_done_info.SourceSystem IN('4','32','38') AND task_center_done_info.FinishedTime>='2015-01-29 11:48:07' AND task_center_done_info.FinishedTime<'2015-01-29 12:20:03'";
+                _, err := db.GetAll(sql)
+				if err != nil {
+					log.Fatalln(err.Error())
+				}
+				/*if common.Empty(res) {
+					log.Fatalln("No data fetched. " + field + "=" + seeds[key])
+				}*/
+				key++
+			}
+
+			chs <- 1
+		}(table, field, seeds, i, segs, cycleN, chs)
+	}
+
+	fmt.Println("wait...")
+	for i := 0; i < c; i++ {
+		<-chs
+	}
+
+	elapse := timer.Elapse("ms")
+
+	fmt.Println("finished once query concurrence, elapse ", elapse, "ms")
 
 	result := map[string]interface{}{
 		"GroupId":     groupid,
