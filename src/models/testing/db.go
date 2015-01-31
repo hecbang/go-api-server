@@ -211,7 +211,7 @@ func queryconcurrence(groupid int64, schemaname string, targetdbschema string, n
 			for k := 0; k < cycleN; k++ {
 				key := segs * page
 				//res, err := db.GetAll("select * from "+table+" where "+field+"=?", seeds[key])
-                sql := "SELECT task_center_done_info.InstanceId, task_center_done_info.InstanceDesc, task_center_done_info.SourceSystem, task_center_done_info.Starter, task_center_done_info.HandleUrl, task_center_done_info.Owners FROM task_center_done_info WHERE task_center_done_info.SourceSystem IN('4','32','38') AND task_center_done_info.FinishedTime>='2015-01-29 11:48:07' AND task_center_done_info.FinishedTime<'2015-01-29 12:20:03'";
+                sql := "select count(EventTypeId) as cnt, EventTypeId from server_alarm_notice_item where CreateTime between '2014-06-01' and '2014-08-21' group by EventTypeId";
                 _, err := db.GetAll(sql)
 				if err != nil {
 					log.Fatalln(err.Error())

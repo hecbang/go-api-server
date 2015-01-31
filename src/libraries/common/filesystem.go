@@ -40,13 +40,18 @@ func ReadLine(filename string) ([]string, error) {
 
 	for {
 		line, err := bufrd.ReadString('\n')
-		if err == io.EOF {
-			break
+		if !Empty(line) {
+			retval = append(retval, line)
+		} else {
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return nil, err
+			}
+			retval = append(retval, line)
 		}
-		if err != nil {
-			return nil, err
-		}
-		retval = append(retval, line)
+
 	}
 	return retval, nil
 }

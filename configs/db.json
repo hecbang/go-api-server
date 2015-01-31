@@ -14,9 +14,6 @@
         ]
     },
     "testdata":{
-        "master":"root:84373723@tcp(127.0.0.1:3306)/testdata?charset=utf8"
-    },
-    "target":{
-        "master":"mysql:mysql888@tcp(192.168.1.131:3306)/test_target_db?charset=utf8"
+        "master":"mysql:mysql888@tcp(172.16.8.136:3306)/testing?charset=utf8"
     }
 }

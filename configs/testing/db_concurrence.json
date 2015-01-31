@@ -1,14 +1,19 @@
 {
+	"is_query":"1",
 	"group":{
-		"name":"集群并发测试1",
-		"parameter":"4Core/2G"
+		"name":"A慢查询集群并发测试-深圳-对比",
+		"parameter":"16Core/64G"
 	},
 	"schema":{
-		"db":"target",
-		"name":"3个节点单写",
-		"amount":5000,
-		"start":1,
-		"offset":10,
-		"max":150
+		"name":"3节点单查",
+		"amount":"5000",
+		"concurrency":"1,10,20,40,60,80,100,150,200,300,400,500,600,700,800,900,1000"
+	},
+	"db":{
+		"host":"172.16.8.41",
+		"port":"3306",
+		"user":"mysql",
+		"password":"mysql888",
+		"dbname":"test_target_db"
 	}
 }
